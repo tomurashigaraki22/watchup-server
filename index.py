@@ -11,4 +11,4 @@ app.register_blueprint(dashboard_bp, url_prefix="/dashboard")
 
 if __name__ == "__main__":
     setup_database_schemas()
-    app.run(debug=True, host="0.0.0.0", port=1234, use_reloader=True)
+    app.run(debug=True, host="0.0.0.0", port=2092, use_reloader=True)
