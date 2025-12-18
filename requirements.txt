@@ -1,0 +1,14 @@
+Flask
+Flask-Cors
+gunicorn
+PyMySQL
+Flask-JWT-Extended
+itsdangerous
+python-dotenv
+requests
+pytz
+pytest
+flask_mail
+flask_cors
+bcrypt
+PyJWT
