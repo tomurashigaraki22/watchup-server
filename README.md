@@ -44,6 +44,47 @@ This is the backend server for WatchUp.
   - Returns recent activity feed.
   - Returns: `{ "activities": [...] }`
 
+### Monitors (`/monitors`)
+**Headers:** `Authorization: Bearer <token>`
+
+- **GET /monitors**
+  - Get all uptime monitors for the user's projects.
+  - Returns: `[ { "id": "...", "name": "...", "url": "...", "status": "operational|degraded|down", "latency": "...", "uptime": "...", "lastCheck": "...", "history": [...] } ]`
+
+- **POST /monitors**
+  - Create a new monitor.
+  - Body: `{ "name": "...", "url": "...", "projectId": "...", "type": "http", "checkInterval": 60 }`
+  - Returns: `{ "message": "...", "id": "...", ... }`
+
+- **DELETE /monitors/<id>**
+  - Delete a monitor.
+
+### Alerts (`/alerts`)
+**Headers:** `Authorization: Bearer <token>`
+
+- **GET /alerts/**
+  - Returns a list of alerts.
+  - Query Params:
+    - `status`: `active` (open) or `resolved`
+    - `severity`: `critical`, `warning`, `low`
+  - Returns: `{ "alerts": [ { "id": "...", "title": "...", "severity": "...", "status": "...", "time": "..." }, ... ] }`
+
+### Events (`/events`)
+**Headers:** `Authorization: Bearer <token>`
+
+- **GET /events/**
+  - Returns a stream of system events and logs.
+  - Query Params:
+    - `q`: Search query (searches message and source)
+    - `type`: Filter by type (`info`, `success`, `error`, `warning`)
+    - `limit`: Number of events (default 50)
+  - Returns: `[ { "id": "...", "type": "...", "message": "...", "source": "...", "time": "..." }, ... ]`
+
+- **POST /events/**
+  - Create a new event log.
+  - Body: `{ "projectId": "...", "type": "...", "message": "...", "source": "..." }`
+  - Returns: `{ "message": "...", "id": "..." }`
+
 ## Setup
 1. Install dependencies: `pip install -r requirements.txt`
 2. Run server: `python index.py`

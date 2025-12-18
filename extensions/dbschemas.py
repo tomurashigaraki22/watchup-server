@@ -100,6 +100,19 @@ def setup_database_schemas():
             ) ENGINE=InnoDB;
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id CHAR(36) PRIMARY KEY,
+                project_id CHAR(36) NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                message TEXT NOT NULL,
+                source VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id)
+            ) ENGINE=InnoDB;
+        """)
+
+
         # cursor.execute("""
         #     ALTER TABLE subscriptions
         #         ADD COLUMN subscription_type VARCHAR(255) DEFAULT 'pro';
