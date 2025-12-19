@@ -112,6 +112,70 @@ def setup_database_schemas():
             ) ENGINE=InnoDB;
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_keys (
+                user_id CHAR(36) PRIMARY KEY,
+                api_key CHAR(36) NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            ) ENGINE=InnoDB;
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS uptime_monitors (
+                id CHAR(36) PRIMARY KEY,
+                project_id CHAR(36) NOT NULL,
+                name VARCHAR(255),
+                url VARCHAR(2048) NOT NULL,
+                interval_seconds INT DEFAULT 60,
+                timeout_ms INT DEFAULT 5000,
+                status VARCHAR(20) DEFAULT 'up',
+                consecutive_failures INT DEFAULT 0,
+                last_checked_at TIMESTAMP NULL,
+                next_check_at TIMESTAMP NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP NULL,
+                UNIQUE KEY uq_uptime_project_url (project_id, url(255)),
+                FOREIGN KEY (project_id) REFERENCES projects(id)
+            ) ENGINE=InnoDB;
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS uptime_heartbeats (
+                id CHAR(36) PRIMARY KEY,
+                project_id CHAR(36) NOT NULL,
+                monitor_id CHAR(36) NOT NULL,
+                status VARCHAR(10) NOT NULL,
+                status_code INT,
+                response_time_ms INT,
+                error_message TEXT,
+                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id),
+                FOREIGN KEY (monitor_id) REFERENCES uptime_monitors(id),
+                KEY idx_uptime_hb_monitor_time (monitor_id, checked_at)
+            ) ENGINE=InnoDB;
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS uptime_incidents (
+                id CHAR(36) PRIMARY KEY,
+                project_id CHAR(36) NOT NULL,
+                monitor_id CHAR(36) NOT NULL,
+                status VARCHAR(20) DEFAULT 'open',
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                resolved_at TIMESTAMP NULL,
+                started_reason VARCHAR(50) DEFAULT 'down',
+                resolved_reason VARCHAR(50),
+                last_error TEXT,
+                FOREIGN KEY (project_id) REFERENCES projects(id),
+                FOREIGN KEY (monitor_id) REFERENCES uptime_monitors(id),
+                KEY idx_uptime_inc_monitor_status (monitor_id, status)
+            ) ENGINE=InnoDB;
+        """)
+
 
         # cursor.execute("""
         #     ALTER TABLE subscriptions
