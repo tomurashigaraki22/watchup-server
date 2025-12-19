@@ -28,6 +28,7 @@ def get_alerts():
                 query = """
                     SELECT 
                         i.id,
+                        i.project_id,
                         i.started_reason,
                         i.last_error,
                         i.status,
@@ -79,6 +80,7 @@ def get_alerts():
                     
                     formatted_alerts.append({
                         "id": alert["id"],
+                        "projectId": alert["project_id"],
                         "title": title,
                         "service": alert["service_name"] or alert["service_url"],
                         "severity": severity,

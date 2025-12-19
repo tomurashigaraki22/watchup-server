@@ -116,6 +116,7 @@ def get_monitors():
                 "name": monitor['name'] or monitor['url'],
                 "url": monitor['url'],
                 "status": status,
+                "projectId": monitor['project_id'],
                 "latency": latency_display,
                 "lastCheck": last_check_time,
                 "uptime": uptime,
