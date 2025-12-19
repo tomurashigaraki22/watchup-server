@@ -26,8 +26,8 @@ def _rate_limit(project_id, limit, window_seconds):
 def sdk_auth_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        project_id = request.headers.get("X-Watchup-Project")
-        api_key = request.headers.get("X-Watchup-Key")
+        project_id = request.headers.get("x-project-id")
+        api_key = request.headers.get("x-api-key")
 
         if not project_id or not api_key:
             return jsonify({"error": "Missing X-Watchup-Project or X-Watchup-Key"}), 401
