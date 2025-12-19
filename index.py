@@ -7,6 +7,8 @@ from functions.alerts import alerts_bp
 from functions.monitors import monitors_bp
 from functions.events import events_bp
 from functions.system import system_bp, v1_bp
+from functions.system import run_uptime_worker_forever
+import sys
 
 app.register_blueprint(auth_bp, url_prefix="/auth")
 app.register_blueprint(projects_bp, url_prefix="/projects")
@@ -22,4 +24,7 @@ app.register_blueprint(v1_bp, url_prefix="/v1")
 
 if __name__ == "__main__":
     setup_database_schemas()
-    app.run(debug=True, host="0.0.0.0", port=2092, use_reloader=True)
+    if len(sys.argv) > 1 and sys.argv[1] == "--uptime-worker":
+        run_uptime_worker_forever()
+    else:
+        app.run(debug=True, host="0.0.0.0", port=2092, use_reloader=True)
