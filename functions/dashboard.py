@@ -37,11 +37,11 @@ def get_dashboard_stats():
                 # Get alerts for monitors belonging to projects the user is subscribed to
                 query_alerts = """
                     SELECT COUNT(*) as count, 
-                           SUM(CASE WHEN a.type = 'critical' THEN 1 ELSE 0 END) as critical_count
-                    FROM alerts a
-                    JOIN monitors m ON a.monitor_id = m.id
+                           SUM(CASE WHEN i.started_reason = 'down' THEN 1 ELSE 0 END) as critical_count
+                    FROM uptime_incidents i
+                    JOIN uptime_monitors m ON i.monitor_id = m.id
                     JOIN subscriptions s ON m.project_id = s.project_id
-                    WHERE s.user_id = %s AND a.status = 'active'
+                    WHERE s.user_id = %s AND i.status = 'open'
                 """
                 cursor.execute(query_alerts, (user_id,))
                 alerts_data = cursor.fetchone()
@@ -52,8 +52,8 @@ def get_dashboard_stats():
                 # 2. Avg Response (last 24h)
                 query_avg_resp = """
                     SELECT AVG(mc.response_time_ms) as avg_resp
-                    FROM monitor_checks mc
-                    JOIN monitors m ON mc.monitor_id = m.id
+                    FROM uptime_heartbeats mc
+                    JOIN uptime_monitors m ON mc.monitor_id = m.id
                     JOIN subscriptions s ON m.project_id = s.project_id
                     WHERE s.user_id = %s AND mc.checked_at > NOW() - INTERVAL 1 DAY
                 """
@@ -68,8 +68,8 @@ def get_dashboard_stats():
                     SELECT 
                         COUNT(*) as total,
                         SUM(CASE WHEN mc.status = 'up' THEN 1 ELSE 0 END) as up_count
-                    FROM monitor_checks mc
-                    JOIN monitors m ON mc.monitor_id = m.id
+                    FROM uptime_heartbeats mc
+                    JOIN uptime_monitors m ON mc.monitor_id = m.id
                     JOIN subscriptions s ON m.project_id = s.project_id
                     WHERE s.user_id = %s AND mc.checked_at > NOW() - INTERVAL 1 DAY
                 """
@@ -113,8 +113,8 @@ def get_dashboard_charts():
                 # Let's get the last 50 checks across all monitors (average per time bucket would be better but keeping it simple)
                 query_latency = """
                     SELECT mc.checked_at, AVG(mc.response_time_ms) as avg_resp
-                    FROM monitor_checks mc
-                    JOIN monitors m ON mc.monitor_id = m.id
+                    FROM uptime_heartbeats mc
+                    JOIN uptime_monitors m ON mc.monitor_id = m.id
                     JOIN subscriptions s ON m.project_id = s.project_id
                     WHERE s.user_id = %s
                     GROUP BY mc.checked_at

@@ -24,17 +24,19 @@ def get_alerts():
         try:
             with conn.cursor() as cursor:
                 # Base Query
+                # Maps uptime_incidents to alert structure
                 query = """
                     SELECT 
-                        a.id,
-                        a.type as severity,
-                        a.message as title,
-                        a.status,
-                        a.created_at,
-                        a.resolved_at,
-                        m.name as service_name
-                    FROM alerts a
-                    JOIN monitors m ON a.monitor_id = m.id
+                        i.id,
+                        i.started_reason,
+                        i.last_error,
+                        i.status,
+                        i.started_at,
+                        i.resolved_at,
+                        m.name as service_name,
+                        m.url as service_url
+                    FROM uptime_incidents i
+                    JOIN uptime_monitors m ON i.monitor_id = m.id
                     JOIN subscriptions s ON m.project_id = s.project_id
                     WHERE s.user_id = %s
                 """
@@ -42,21 +44,26 @@ def get_alerts():
 
                 # Apply Filters
                 if status_filter:
-                    # Map frontend 'open' to DB 'active' if needed, or stick to DB values
-                    # DB uses 'active' for open alerts based on dbschemas.py
-                    if status_filter == 'open':
-                        query += " AND a.status = 'active'"
+                    if status_filter == 'open' or status_filter == 'active':
+                        query += " AND i.status = 'open'"
                     elif status_filter == 'resolved':
-                         query += " AND a.status = 'resolved'"
+                         query += " AND i.status = 'resolved'"
                     else:
-                         query += " AND a.status = %s"
+                         query += " AND i.status = %s"
                          params.append(status_filter)
                 
+                # Map severity filter to started_reason
+                # 'critical' -> 'down'
+                # 'warning' -> 'degraded' (if supported)
                 if severity_filter:
-                    query += " AND a.type = %s"
-                    params.append(severity_filter)
+                    if severity_filter == 'critical':
+                        query += " AND i.started_reason = 'down'"
+                    elif severity_filter == 'warning':
+                         query += " AND i.started_reason != 'down'" # Assuming anything else is warning
+                    else:
+                         pass # low severity not strictly mapped yet
 
-                query += " ORDER BY a.created_at DESC"
+                query += " ORDER BY i.started_at DESC"
 
                 cursor.execute(query, tuple(params))
                 alerts = cursor.fetchall()
@@ -64,16 +71,20 @@ def get_alerts():
                 # Format response to match frontend expectations
                 formatted_alerts = []
                 for alert in alerts:
-                    # Calculate time ago string or just return ISO date for frontend to format
-                    # Returning ISO date is cleaner for API
+                    # Map started_reason to severity
+                    severity = "critical" if alert["started_reason"] == "down" else "warning"
+                    
+                    # Construct title
+                    title = f"Monitor {alert['started_reason']}: {alert['last_error'] or 'Unknown error'}"
+                    
                     formatted_alerts.append({
                         "id": alert["id"],
-                        "title": alert["title"],
-                        "service": alert["service_name"],
-                        "severity": alert["severity"], # type column in DB maps to severity
-                        "status": "open" if alert["status"] == "active" else "resolved",
-                        "time": alert["created_at"].strftime("%Y-%m-%d %H:%M:%S") if alert["created_at"] else None,
-                        "created_at_iso": alert["created_at"].isoformat() if alert["created_at"] else None
+                        "title": title,
+                        "service": alert["service_name"] or alert["service_url"],
+                        "severity": severity,
+                        "status": "open" if alert["status"] == "open" else "resolved",
+                        "time": alert["started_at"].strftime("%Y-%m-%d %H:%M:%S") if alert["started_at"] else None,
+                        "created_at_iso": alert["started_at"].isoformat() if alert["started_at"] else None
                     })
 
         finally:

@@ -29,10 +29,10 @@ def get_monitors():
     try:
         # Get all monitors for projects the user is subscribed to
         cursor.execute("""
-            SELECT m.id, m.name, m.url, m.project_id, m.type, m.check_interval
-            FROM monitors m
+            SELECT m.id, m.name, m.url, m.project_id, m.interval_seconds as check_interval
+            FROM uptime_monitors m
             JOIN subscriptions s ON m.project_id = s.project_id
-            WHERE s.user_id = %s AND m.is_active = TRUE
+            WHERE s.user_id = %s AND m.deleted_at IS NULL
         """, (request.user_id,))
         monitors = cursor.fetchall()
         
@@ -43,7 +43,7 @@ def get_monitors():
             # Get latest check for status and last_check
             cursor.execute("""
                 SELECT status, response_time_ms, checked_at
-                FROM monitor_checks
+                FROM uptime_heartbeats
                 WHERE monitor_id = %s
                 ORDER BY checked_at DESC
                 LIMIT 1
@@ -55,9 +55,9 @@ def get_monitors():
             cursor.execute("""
                 SELECT 
                     COUNT(*) as total_checks,
-                    SUM(CASE WHEN status = 'up' OR status = '200' OR status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) as up_checks,
+                    SUM(CASE WHEN status = 'up' OR status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) as up_checks,
                     AVG(response_time_ms) as avg_latency
-                FROM monitor_checks
+                FROM uptime_heartbeats
                 WHERE monitor_id = %s AND checked_at >= %s
             """, (monitor_id, yesterday))
             stats = cursor.fetchone()
@@ -70,17 +70,10 @@ def get_monitors():
             if latest_check:
                 last_check_time = format_time_ago(latest_check['checked_at'])
                 
-                # Logic for status:
-                # If latest check failed (status != 'up' or code not 2xx) -> down
-                # If latest check slow (> 500ms) -> degraded
-                # Else -> operational
-                
-                # Note: 'status' column in monitor_checks might be 'up'/'down' or HTTP code. 
-                # Assuming 'up' or '200' means good.
                 check_status = str(latest_check.get('status', '')).lower()
                 response_time = latest_check.get('response_time_ms', 0) or 0
                 
-                if check_status == 'up' or check_status == '200' or check_status == 'ok':
+                if check_status == 'up':
                     if response_time > 500:
                         status = "degraded"
                     else:
@@ -105,7 +98,7 @@ def get_monitors():
             # Get history for sparkline (last 12 checks)
             cursor.execute("""
                 SELECT response_time_ms, status
-                FROM monitor_checks
+                FROM uptime_heartbeats
                 WHERE monitor_id = %s
                 ORDER BY checked_at DESC
                 LIMIT 12
@@ -117,11 +110,10 @@ def get_monitors():
                     'latency': h['response_time_ms'],
                     'status': h['status']
                 })
-            # Reverse to have oldest first for charts if needed, but usually newest first is fine for processing
             
             result.append({
                 "id": monitor['id'],
-                "name": monitor['name'],
+                "name": monitor['name'] or monitor['url'],
                 "url": monitor['url'],
                 "status": status,
                 "latency": latency_display,
@@ -145,10 +137,10 @@ def create_monitor():
     name = data.get('name')
     url = data.get('url')
     project_id = data.get('projectId')
-    monitor_type = data.get('type', 'http')
+    # monitor_type = data.get('type', 'http') # Not used in new schema
     check_interval = data.get('checkInterval', 60)
     
-    if not name or not url or not project_id:
+    if not url or not project_id:
         return jsonify({"error": "Missing required fields"}), 400
         
     conn = get_db_connection()
@@ -164,10 +156,13 @@ def create_monitor():
             return jsonify({"error": "Unauthorized access to project"}), 403
             
         monitor_id = str(uuid.uuid4())
+        # Clean URL
+        url = url.strip().strip('`').strip()
+        
         cursor.execute("""
-            INSERT INTO monitors (id, project_id, name, url, type, check_interval)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (monitor_id, project_id, name, url, monitor_type, check_interval))
+            INSERT INTO uptime_monitors (id, project_id, name, url, interval_seconds, next_check_at)
+            VALUES (%s, %s, %s, %s, %s, NOW())
+        """, (monitor_id, project_id, name, url, check_interval))
         
         conn.commit()
         
@@ -199,7 +194,7 @@ def delete_monitor(monitor_id):
         # Verify ownership (via project subscription)
         cursor.execute("""
             SELECT m.id 
-            FROM monitors m
+            FROM uptime_monitors m
             JOIN subscriptions s ON m.project_id = s.project_id
             WHERE m.id = %s AND s.user_id = %s
         """, (monitor_id, request.user_id))
@@ -207,10 +202,12 @@ def delete_monitor(monitor_id):
         if not cursor.fetchone():
             return jsonify({"error": "Monitor not found or unauthorized"}), 404
             
-        # Delete related data first (FK constraints)
-        cursor.execute("DELETE FROM alerts WHERE monitor_id = %s", (monitor_id,))
-        cursor.execute("DELETE FROM monitor_checks WHERE monitor_id = %s", (monitor_id,))
-        cursor.execute("DELETE FROM monitors WHERE id = %s", (monitor_id,))
+        # Soft delete
+        cursor.execute("""
+            UPDATE uptime_monitors 
+            SET deleted_at = NOW(), is_active = FALSE
+            WHERE id = %s
+        """, (monitor_id,))
         
         conn.commit()
         return jsonify({"message": "Monitor deleted successfully"}), 200
