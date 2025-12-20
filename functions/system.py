@@ -236,6 +236,60 @@ def sdk_auth():
         return jsonify({"ok": False, "error": "Internal server error"}), 500
 
 
+@v1_bp.route("/capture", methods=["POST"])
+@sdk_auth_required
+def v1_capture_event():
+    try:
+        data = request.get_json(silent=True) or {}
+        project_id = request.sdk_project_id
+        
+        event_type = data.get("type", "unknown_error")
+        message = data.get("message", "No message provided")
+        stack = data.get("stack", "")
+        component_stack = data.get("componentStack", "")
+        url = data.get("url", "")
+        user_agent = data.get("userAgent", "")
+        timestamp = data.get("timestamp") # ISO string
+
+        # Format details into last_error
+        details = f"{message}\n\nURL: {url}\nUser Agent: {user_agent}"
+        if stack:
+            details += f"\nStack: {stack}"
+        if component_stack:
+            details += f"\nComponent Stack: {component_stack}"
+
+        incident_id = str(uuid.uuid4())
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({"error": "Database connection failed"}), 500
+
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO uptime_incidents (
+                        id, project_id, monitor_id, status, started_at, started_reason, last_error
+                    ) VALUES (%s, %s, NULL, 'open', %s, %s, %s)
+                    """,
+                    (
+                        incident_id,
+                        project_id,
+                        datetime.datetime.now() if not timestamp else timestamp,
+                        event_type,
+                        details
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+        return jsonify({"ok": True, "id": incident_id}), 201
+    except Exception as e:
+        print("Capture event error:", e)
+        return jsonify({"error": "Internal server error"}), 500
+
+
 @v1_bp.route("/monitors", methods=["POST"])
 @sdk_auth_required
 def v1_create_monitor():

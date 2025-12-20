@@ -39,8 +39,8 @@ def get_dashboard_stats():
                     SELECT COUNT(*) as count, 
                            SUM(CASE WHEN i.started_reason = 'down' THEN 1 ELSE 0 END) as critical_count
                     FROM uptime_incidents i
-                    JOIN uptime_monitors m ON i.monitor_id = m.id
-                    JOIN subscriptions s ON m.project_id = s.project_id
+                    LEFT JOIN uptime_monitors m ON i.monitor_id = m.id
+                    JOIN subscriptions s ON i.project_id = s.project_id
                     WHERE s.user_id = %s AND i.status = 'open'
                 """
                 cursor.execute(query_alerts, (user_id,))

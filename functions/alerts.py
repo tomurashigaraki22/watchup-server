@@ -82,7 +82,7 @@ def get_alerts():
                         "id": alert["id"],
                         "projectId": alert["project_id"],
                         "title": title,
-                        "service": alert["service_name"] or alert["service_url"],
+                        "service": alert["service_name"] or alert["service_url"] or "Application Error",
                         "severity": severity,
                         "status": "open" if alert["status"] == "open" else "resolved",
                         "time": alert["started_at"].strftime("%Y-%m-%d %H:%M:%S") if alert["started_at"] else None,

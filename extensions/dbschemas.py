@@ -163,7 +163,7 @@ def setup_database_schemas():
             CREATE TABLE IF NOT EXISTS uptime_incidents (
                 id CHAR(36) PRIMARY KEY,
                 project_id CHAR(36) NOT NULL,
-                monitor_id CHAR(36) NOT NULL,
+                monitor_id CHAR(36),
                 status VARCHAR(20) DEFAULT 'open',
                 started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 resolved_at TIMESTAMP NULL,
